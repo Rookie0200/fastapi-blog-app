@@ -41,7 +41,7 @@ app.include_router(posts.router, prefix="/api/posts", tags=["posts"])
 @app.get('/', include_in_schema=False, name="home")
 @app.get('/posts', include_in_schema=False, name="posts")
 async def read_root(request: Request, db: Annotated[AsyncSession, Depends(get_db)]):
-    result = await db.execute(select(Post).options(selectinload(Post.author)))
+    result = await db.execute(select(Post).options(selectinload(Post.author)).order_by(Post.date_posted.desc()))
     posts = result.scalars().all()
     return templates.TemplateResponse(request, "home.html", {"posts": posts, "title": "Home"})
 
@@ -74,7 +74,7 @@ async def user_posts_page(
             detail="User not found",
         )
     result = await db.execute(select(Post).options(selectinload(Post.author)).where(
-        Post.user_id == user_id))
+        Post.user_id == user_id).order_by(Post.date_posted.desc()))
     posts = result.scalars().all()
     return templates.TemplateResponse(
         request,
