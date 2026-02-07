@@ -315,12 +315,12 @@ async def delete_posts(post_id: int, db: Annotated[AsyncSession, Depends(get_db)
 
 
 @app.exception_handler(StartletteHTTPException)
-def general_http_exception_handler(request: Request, exception: StartletteHTTPException):
+async def general_http_exception_handler(request: Request, exception: StartletteHTTPException):
+    if request.url.path.startswith("/api"):
+        return await http_exception_handler(request, exception)
+
     message = (
         exception.detail if exception.detail else "An error occurred. Please check your request and try again.")
-
-    if request.url.path.startswith("/api"):
-        return JSONResponse(status_code=exception.status_code, content={"detail": message})
 
     return templates.TemplateResponse(request, "error.html", {
         "status_code": exception.status_code,
@@ -333,10 +333,10 @@ def general_http_exception_handler(request: Request, exception: StartletteHTTPEx
 
 
 @app.exception_handler(RequestValidationError)
-def validation_exception_handler(request: Request, exception: RequestValidationError):
+async def validation_exception_handler(request: Request, exception: RequestValidationError):
 
     if request.url.path.startswith("/api"):
-        return JSONResponse(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, content={"detail": exception.errors()})
+        return await request_validation_exception_handler(request, exception)
 
     return templates.TemplateResponse(request, "error.html", {
         "status_code": status.HTTP_422_UNPROCESSABLE_CONTENT,
