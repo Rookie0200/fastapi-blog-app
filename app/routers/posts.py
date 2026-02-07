@@ -1,0 +1,115 @@
+from fastapi import APIRouter, HTTPException, status, Depends
+from starlette.exceptions import HTTPException as StartletteHTTPException
+from schemas.post import CreatePost, PostResponse, UpdatePost
+from typing import Annotated
+from models.index import Post, User
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+from core.database import get_db
+
+
+router = APIRouter()
+# get all posts
+
+
+@router.get('', response_model=list[PostResponse])
+async def get_posts(db: Annotated[AsyncSession, Depends(get_db)]):
+    result = await db.execute(select(Post).options(selectinload(Post.author)))
+    posts = result.scalars().all()
+
+    return posts
+
+
+# create post
+@router.post('', response_model=PostResponse, status_code=status.HTTP_201_CREATED)
+async def create_post(post: CreatePost, db: Annotated[AsyncSession, Depends(get_db)]):
+    result = await db.execute(select(User).where(User.id == post.user_id))
+    user = result.scalars().first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    new_post = Post(
+        title=post.title,
+        content=post.content,
+        user_id=post.user_id
+    )
+
+    db.add(new_post)
+    await db.commit()
+    await db.refresh(new_post, attribute_names=["author"])
+
+    return new_post
+
+
+@router.get('/{post_id}', response_model=PostResponse, status_code=status.HTTP_200_OK)
+async def get_user_posts(post_id: int, db: Annotated[AsyncSession, Depends(get_db)]):
+
+    result = await db.execute(select(Post).options(selectinload(Post.author)).where(Post.id == post_id))
+    post = result.scalars().first()
+
+    if post:
+        return post
+
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                        detail="Post not found")
+
+
+# fully update post route...
+@router.put('/{post_id}', response_model=PostResponse, status_code=status.HTTP_200_OK)
+async def update_post_full(post_id: int, post_data: CreatePost, db: Annotated[AsyncSession, Depends(get_db)]):
+
+    result = await db.execute(select(Post).where(Post.id == post_id))
+    post = result.scalars().first()
+
+    if not post:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail="Post not found")
+
+    if post_data.user_id != post.user_id:
+        result = await db.execute(select(User).where(User.id == post_data.user_id))
+        user = result.scalars().first()
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    post.title = post_data.title
+    post.content = post_data.content
+    post.user_id = post_data.user_id
+
+    await db.commit()
+    await db.refresh(post, attribute_names=["author"])
+
+
+# partially update post route...
+@router.patch('/{post_id}', response_model=PostResponse, status_code=status.HTTP_200_OK)
+async def update_post_full(post_id: int, post_data: UpdatePost, db: Annotated[AsyncSession, Depends(get_db)]):
+
+    result = await db.execute(select(Post).where(Post.id == post_id))
+    post = result.scalars().first()
+
+    if not post:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail="Post not found")
+
+    update_post = post_data.model_dump(exclude_unset=True)
+    for field, value in update_post.items():
+        setattr(post, field, value)
+
+    await db.commit()
+    await db.refresh(post, attribute_names=["author"])
+    return post
+
+
+@router.delete('/{post_id}', status_code=status.HTTP_204_NO_CONTENT)
+async def delete_posts(post_id: int, db: Annotated[AsyncSession, Depends(get_db)]):
+    result = await db.execute(select(Post).where(Post.id == post_id))
+    post = result.scalars().first()
+
+    if not post:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail="Post not found")
+
+    await db.delete(post)
+    await db.commit()

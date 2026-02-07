@@ -1,6 +1,6 @@
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
-from configs.config import DATABASE_URL
+from core.config import DATABASE_URL
 
 DATABASE_URL = "sqlite+aiosqlite:///./blog.db"
 
