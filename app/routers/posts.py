@@ -80,11 +80,12 @@ async def update_post_full(post_id: int, post_data: CreatePost, db: Annotated[As
 
     await db.commit()
     await db.refresh(post, attribute_names=["author"])
+    return post
 
 
 # partially update post route...
 @router.patch('/{post_id}', response_model=PostResponse, status_code=status.HTTP_200_OK)
-async def update_post_full(post_id: int, post_data: UpdatePost, db: Annotated[AsyncSession, Depends(get_db)]):
+async def update_post_partial(post_id: int, post_data: UpdatePost, db: Annotated[AsyncSession, Depends(get_db)]):
 
     result = await db.execute(select(Post).where(Post.id == post_id))
     post = result.scalars().first()
