@@ -7,7 +7,7 @@ class UserBase(BaseModel):
 
 
 class CreateUser(UserBase):
-    pass
+    password: str = Field(min_length=8)
 
 
 class UpdateUser(BaseModel):
@@ -16,9 +16,19 @@ class UpdateUser(BaseModel):
     image_file: str | None = Field(default=None, min_length=1, max_length=200)
 
 
-class UserResponse(UserBase):
+class UserPublicResponse(UserBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    username: str
     image_file: str | None
     image_path: str
+
+
+class UserPrivateResponse(UserPublicResponse):
+    email: EmailStr
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
