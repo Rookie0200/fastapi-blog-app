@@ -11,6 +11,7 @@ from datetime import timedelta
 from fastapi.security import OAuth2PasswordRequestForm
 from services.auth import create_access_token, hash_password, verify_access_token, verify_password, oauth2_scheme
 from core.config import settings
+from services.auth import CurrentUser
 
 
 router = APIRouter()
@@ -66,25 +67,8 @@ async def access_token_for_login(form_data: Annotated[OAuth2PasswordRequestForm,
 
 
 @router.get('/me', response_model=UserPrivateResponse)
-async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)], db: Annotated[AsyncSession, Depends(get_db)]):
-    user_id = verify_access_token(token)
-    if user_id is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
-                            detail="Invalid or expired token", headers={"WWW-Authenticate": "Bearer"})
-
-    try:
-        user_id_int = int(user_id)
-    except (TypeError, ValueError):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
-                            detail="Invalid or expired token", headers={"WWW-Authenticate": "Bearer"})
-
-    result = await db.execute(select(User).where(User.id == user_id_int))
-    user = result.scalars().first()
-
-    if not user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
-                            detail="Invalid or expired token", headers={"WWW-Authenticate": "Bearer"})
-    return user
+async def get_current_user(current_user: CurrentUser):
+    return current_user
 
 
 @router.get('/{user_id}', response_model=UserPublicResponse, status_code=status.HTTP_200_OK)
@@ -117,7 +101,11 @@ async def get_user_posts(user_id: int, db: Annotated[AsyncSession, Depends(get_d
 
 
 @router.patch('/{user_id}', response_model=UserPrivateResponse)
-async def update_user(user_id: int, user_update: UpdateUser, db: Annotated[AsyncSession, Depends(get_db)]):
+async def update_user(user_id: int, user_update: UpdateUser, current_user: CurrentUser, db: Annotated[AsyncSession, Depends(get_db)]):
+    if user_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail="Not authorized")
+
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalars().first()
 
@@ -158,7 +146,11 @@ async def update_user(user_id: int, user_update: UpdateUser, db: Annotated[Async
 
 
 @router.delete('/{user_id}', status_code=status.HTTP_204_NO_CONTENT)
-async def delete_user(user_id: int, db: Annotated[AsyncSession, Depends(get_db)]):
+async def delete_user(user_id: int, current_user: CurrentUser, db: Annotated[AsyncSession, Depends(get_db)]):
+    if user_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail="Not authorized")
+
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalars().first()
 

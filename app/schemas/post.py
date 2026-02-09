@@ -9,7 +9,7 @@ class PostBase(BaseModel):
 
 
 class CreatePost(PostBase):
-    user_id: int
+    pass
 
 
 class UpdatePost(BaseModel):
